@@ -17,6 +17,7 @@ import androidx.databinding.DataBindingUtil
 import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import io.reactivex.schedulers.Schedulers
 
 class RoomActivity : AppCompatActivity(), ContactAdapter.ContactListener {
 
@@ -137,6 +138,7 @@ class RoomActivity : AppCompatActivity(), ContactAdapter.ContactListener {
         // Add contact using Room
         val contactEntity = ContactEntity(name, phone, address)
         val id = appRoomDatabase?.getContactDao()?.insertUser(contactEntity)
+
         Log.d(TAG, "addContact: id:$id")
 
         releaseInput()

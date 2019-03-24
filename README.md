@@ -686,3 +686,69 @@ database = Room.databaseBuilder(context.getApplicationContext(),
         .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_1_4)
         .build();
 ```
+
+
+
+## Room with RxJava
+
+* Các truy vấn của Room thường trả về qua **LiveData** hoặc **RxJava** như `Maybe`, `Single`, `Flowable` là các truy vấn có thể quan sát được. Chúng cho phép bạn nhận được sự thay đổi của database một cách nhanh nhất để có thể cập nhật UI.
+* Nếu đã làm việc với RxJava quen thì thư viện Room cũng hỗ trợ kết hợp với Rx để tạo ra các quan sát đối với dữ liệu trong ứng dụng.
+* Việc trả về theo Rx, có thể sử dụng cho **@Insert**, **@Update**, **@Delete** để xử lý các quan sát đối với từng loại.
+
+```
+@Insert
+Completable insert(User user);
+// or
+@Insert
+Maybe<Long> insert(User user);
+// or
+@Insert
+Single<Long> insert(User[] user);
+// or
+@Insert
+Maybe<List<Long>> insert(User[] user);
+// or
+@Insert
+Single<List<Long>> insert(User[] user);
+```
+
+* Như bình thường thì phương thức **@Query** là một cách gọi đồng bộ(synchronous). Chúng ta cần phải gọi nhiều lần khi có sự thay đổi của dữ liệu. Vì vậy nêu sử dụng RxJava để có thể quan sát được những thay đổi của database. Room hỗ trợ thực hiện những cuộc gọi không đồng bộ(asynchronous) đối với Rx.
+* Nếu bạn lo lắng về việc các thread, Room hỗ trợ quan sát trên nhiều luồng khác nhau tùy thuộc vào việc bạn sử dụng thread nào để xử lý.
+
+1. Maybe
+
+* Đối với Maybe, sử dụng trong DAO như sau:
+
+```
+@Query(“SELECT * FROM Users WHERE id = :userId”)
+Maybe<User> getUserById(String userId);
+```
+
+* Khi truy vấn không có gì, nó sẽ chạy vào **onComplete**.
+* Khi có user trong database, nó sẽ chạy vào **onSuccess**.
+* Nếu người dùng cập nhật database sau khi complete, không có gì xảy ra.
+
+2. Single
+
+```
+@Query(“SELECT * FROM Users WHERE id = :userId”)
+Single<User> getUserById(String userId);
+```
+
+* Khi không có user hoặc là không trả về kết quả, single sẽ kích hoạt **onError()**.
+* Khi có user trong database, nó sẽ kích hoạt **onSuccess()**. 
+* Nếu người dùng cập nhật sau khi single complete, không có gì xảy ra.
+
+3. Flowable/Observable
+
+```
+@Query(“SELECT * FROM Users WHERE id = :userId”)
+Flowable<User> getUserById(String userId);
+```
+
+* Khi không có dữ liệu hoặc truy vấn trả về trống, nó sẽ không gọi hàm gì kể cả **onNext()** và **onError()**. 
+* Khi có người dùng trong database, sẽ kích hoạt **onNext()**. 
+* Mỗi khi người dùng cập nhật dữ liệu, đối tượng này sẽ tự động phát ra cho phép người dùng cập nhật giao diện.
+
+## Room with Time
+
