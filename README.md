@@ -201,6 +201,63 @@ fun update(oldName: String, name: String) : Int{
 
 > Đến cuối cùng, khi Activity bị hủy đi thì cũng nên close lại **SQLiteOpenHelper**.
 
+## Migration Change
+
+* Việc migration trên API SQLite thực hiện sẽ rất khó khăn và không cẩn thận một chút là đã tự hủy đi database của người dùng trong ứng dụng.
+* Việc phải cập nhật database với các phiên bản sau sẽ xảy ra 2 trường hợp sau:
+
+    * Nếu người dùng cài đặt ứng dụng mà chưa có version 1 thì ứng dụng sẽ chạy vào phương thức **DbHelper.onCreate(db)**.
+    * Nếu người dùng cập nhật từ phiên bản version 1 lên 2 thì ứng dụng sẽ chạy vào phương thức **DbHelper.onUpgrade(db… )**.
+    
+* Việc đầu tiên cần làm để cập nhật database lên phiên bản mới nhất là viết lệnh SQL để đưa các cơ sở dữ liệu lên phiên bản mới nhất(đối với các máy chưa có version nào).
+
+```
+private val DATABASE_CREATE =
+    "CREATE TABLE $DATABASE_TABLE ($KEY_ID INTEGER PRIMARY KEY AUTOINCREMENT, " +
+        "$KEY_NAME TEXT NOT NULL, $KEY_VALUE INTEGER DEFAULT 0);"
+```
+
+* Khi đã tạo được câu lệnh để cập nhật, phải dựa vào database trong hàm **onUpgrade()** để lấy dữ liệu cũ ra và cập nhật vào bảng mới nếu có thêm cột mới:
+
+```
+private fun upgradeVersion2(db: SQLiteDatabase) {
+        db.execSQL("ALTER TABLE $DATABASE_TABLE ADD COLUMN $KEY_VALUE INTEGER DEFAULT 0;")
+
+        val cursor = db.query(DATABASE_TABLE, RESULT_COLUMNS, null, null, null, null, null, null)
+        if (cursor != null) {
+            var hasItem = cursor.moveToFirst()
+            while (hasItem) {
+                val id = cursor.getInt(cursor.getColumnIndex(KEY_ID))
+                val nameStr = cursor.getString(cursor.getColumnIndex(KEY_NAME))
+                val values = ContentValues()
+                values.put(KEY_VALUE, nameStr.length)
+                db.update(DATABASE_TABLE, values, "$KEY_ID=?", arrayOf(id.toString()))
+                hasItem = cursor.moveToNext()
+            }
+            cursor.close()
+        }
+    }
+```
+
+* Việc cập nhật đối với từng phiên bản sẽ được triển khai thủ công bên trong hàm **onUpgrade()** để đảm bảo người dùng có database mới nhất đối với sự thay đổi version tiếp theo:
+
+```
+override fun onUpgrade(db: SQLiteDatabase, oldV: Int, newV: Int) {
+    if (oldVersion <  2) {
+        upgradeVersion2(db)
+
+    }
+    if (oldVersion <  3) {
+        upgradeVersion3(db)
+
+    }
+    if (oldVersion <  4) {
+        upgradeVersion4(db)
+
+    }
+}
+```
+
 # Manage DB with Room
 
 ## Why using Room Library?
@@ -547,3 +604,85 @@ abstract class MyRoomDatabase : RoomDatabase() {
 ```
 
 * Việc thêm **allowMainThreadQueries()** thì Room không khuyến nghị vì có thể dẫn đến việc UI bị đứng hình vì load dữ liệu lâu trên Main Thread.
+
+## Migration with Room
+
+* Khi database của bạn có sự thay đổi về cấu trúc các bảng, sẽ rất đau đầu khi phải cập nhật thay đổi và giữ lại được các dữ liệu đang lưu trữ của người dùng.
+* Trong Room, nếu có sự thay đổi về cấu trúc, thư viện sẽ gợi ý bạn tăng version của database lên ở trong cài đặt cấu hình của database. Nếu giữ nguyên version của database, ứng dụng của bạn sẽ bị **crash**.
+
+```
+@Database(entities = {User.class}, version = 2)
+public abstract class UsersDatabase extends RoomDatabase
+``` 
+
+* Nếu như thay đổi version nhưng lại không có migration cho version 1 lên 2, lúc này ứng dụng cũng **crash**. Lúc này hệ thống sẽ hiển thị thông báo cho bạn sử dụng phương thức **fallbackToDestructiveMigration()** để thay đổi hẳn database mới.
+
+```
+database = Room.databaseBuilder(context.getApplicationContext(),
+                        UsersDatabase.class, "Sample.db")
+                .fallbackToDestructiveMigration()
+                .build();
+```
+> Nhưng nếu làm theo thì database sẽ bị xóa hoàn toàn và không còn dữ liệu người dùng. Vì vậy chúng ta phải tìm cách để vừa cập nhật ứng dụng lại vừa có thể giữ lại được database cũ.
+
+* Để giữ nguyên dữ liệu của người dùng, chúng ta cần tạo ra một migration giữa các phiên bản. Nếu schema không có sự thay đổi gì, chúng ta chỉ cần tạo ra một migration trống, lúc này dữ liệu sẽ được dữ lại:
+
+```
+static final Migration MIGRATION_1_2 = new Migration(1, 2) {
+    @Override
+    public void migrate(SupportSQLiteDatabase database) {
+        // Since we didn't alter the table, there's nothing else to do here.
+    }
+};
+...
+database =  Room.databaseBuilder(context.getApplicationContext(),
+        UsersDatabase.class, "Sample.db")
+        .addMigrations(MIGRATION_1_2)
+        .build();
+```
+
+* Trong trường hợp migration với schema thay đổi ít, sẽ phải dùng một số lệnh của SQL như **ALTER** để thay đổi tên hoặc thêm cột mới.
+
+```
+static final Migration MIGRATION_2_3 = new Migration(2, 3) {
+    @Override
+    public void migrate(SupportSQLiteDatabase database) {
+        database.execSQL("ALTER TABLE users "
+                + " ADD COLUMN last_update INTEGER");
+    }
+};
+...
+database = Room.databaseBuilder(context.getApplicationContext(),
+        UsersDatabase.class, "Sample.db")
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+        .build();
+```
+
+* Nếu thay đổi những cấu trúc phức tạp của schema, bạn cần thao tác thêm việc copy từ bảng cũ sang bảng mới bằng lệnh SQL:
+
+```
+static final Migration MIGRATION_3_4 = new Migration(3, 4) {
+    @Override
+    public void migrate(SupportSQLiteDatabase database) {
+        // Create the new table
+        database.execSQL(
+                "CREATE TABLE users_new (userid TEXT, username TEXT, last_update INTEGER, PRIMARY KEY(userid))");
+// Copy the data
+        database.execSQL(
+                "INSERT INTO users_new (userid, username, last_update) SELECT userid, username, last_update FROM users");
+// Remove the old table
+        database.execSQL("DROP TABLE users");
+// Change the table name to the correct one
+        database.execSQL("ALTER TABLE users_new RENAME TO users");
+    }
+};
+```
+
+* Việc cập nhật theo từng phiên bản diễn ra theo trình tự trên, nhưng Room cũng hỗ trợ việc migration nhiều version lại với nhau, ví dụ ở đây chúng ta thực hiện việc migration từ version 1 tới 4 bằng tổng hợp một migration chung cho nhiều thay đổi như sau:
+
+```
+database = Room.databaseBuilder(context.getApplicationContext(),
+        UsersDatabase.class, "Sample.db")
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_1_4)
+        .build();
+```

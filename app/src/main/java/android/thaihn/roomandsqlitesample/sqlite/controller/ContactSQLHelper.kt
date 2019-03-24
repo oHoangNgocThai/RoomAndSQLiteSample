@@ -19,6 +19,17 @@ class ContactSQLHelper(context: Context) :
         Log.d(TAG, "onUpgrade: oldVersion:$oldVersion---newVersion:$newVersion")
         db?.execSQL(SQL_DELETE_CONTACT)
         onCreate(db)
+
+        // update schema and kept data of user, using oldVersion for check
+        if (oldVersion <  2) {
+//            upgradeVersion2(db)
+        }
+        if (oldVersion <  3) {
+//            upgradeVersion3(db)
+        }
+        if (oldVersion <  4) {
+//            upgradeVersion4(db)
+        }
     }
 
     override fun onDowngrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {

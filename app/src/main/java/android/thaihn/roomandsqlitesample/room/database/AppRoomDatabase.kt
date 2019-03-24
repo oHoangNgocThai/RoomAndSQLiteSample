@@ -6,6 +6,10 @@ import android.thaihn.roomandsqlitesample.room.entity.ContactEntity
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.room.migration.Migration
+
+
 
 @Database(
     entities = [ContactEntity::class],
@@ -31,6 +35,7 @@ abstract class AppRoomDatabase : RoomDatabase() {
                             AppRoomDatabase::class.java,
                             DATABASE_NAME
                         ).allowMainThreadQueries()
+                        .addMigrations(MIGRATION_1_2)
                         .build()
                 }
             }
@@ -39,6 +44,12 @@ abstract class AppRoomDatabase : RoomDatabase() {
 
         fun destroyDataBase() {
             INSTANCE = null
+        }
+
+        private val MIGRATION_1_2: Migration = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Since we didn't alter the table, there's nothing else to do here.
+            }
         }
     }
 }
