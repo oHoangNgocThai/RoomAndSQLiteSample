@@ -10,7 +10,9 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity android:name=".room.ui.RoomActivity"></activity>
-        <activity android:name=".sqlite.ui.ContactControllerActivity"></activity>
+        <activity
+            android:name=".sqlite.ui.ContactControllerActivity"
+            android:windowSoftInputMode="stateHidden"></activity>
         <activity android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
