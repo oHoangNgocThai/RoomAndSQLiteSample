@@ -7,7 +7,7 @@ import android.thaihn.roomandsqlitesample.sqlite.entity.Contact
 
 class ContactController(context: Context) {
 
-    val contactSQLHelper = ContactSQLHelper(context)
+    private val contactSQLHelper = ContactSQLHelper(context)
 
     fun insert(contact: Contact): Long {
         val db = contactSQLHelper.writableDatabase
@@ -27,10 +27,10 @@ class ContactController(context: Context) {
         // Define a projection that specifies which columns from the database
         // you will actually use after this query.
         val projection = arrayOf(
-                BaseColumns._ID,
-                ContactContract.ContactEntry.COLUMN_NAME,
-                ContactContract.ContactEntry.COLUMN_PHONE,
-                ContactContract.ContactEntry.COLUMN_ADDRESS
+            BaseColumns._ID,
+            ContactContract.ContactEntry.COLUMN_NAME,
+            ContactContract.ContactEntry.COLUMN_PHONE,
+            ContactContract.ContactEntry.COLUMN_ADDRESS
         )
 
         val selection = "${ContactContract.ContactEntry.COLUMN_NAME} = ?"
@@ -39,13 +39,13 @@ class ContactController(context: Context) {
         val sortOrder = "${ContactContract.ContactEntry.COLUMN_NAME} DESC"
 
         val cursor = db.query(
-                ContactContract.ContactEntry.TABLE_NAME,    // The table to query
-                projection, // The array of columns to return (pass null to get all)
-                selection,  // The columns for the WHERE clause
-                selectionArgs, // The values for the WHERE clause
-                null, // don't group the rows
-                null,   // don't filter by row groups
-                sortOrder   // The sort order
+            ContactContract.ContactEntry.TABLE_NAME,    // The table to query
+            projection, // The array of columns to return (pass null to get all)
+            selection,  // The columns for the WHERE clause
+            selectionArgs, // The values for the WHERE clause
+            null, // don't group the rows
+            null,   // don't filter by row groups
+            sortOrder   // The sort order
         )
 
         val results = arrayListOf<Contact>()
@@ -53,11 +53,11 @@ class ContactController(context: Context) {
             while (moveToNext()) {
                 val id = getLong(getColumnIndexOrThrow(BaseColumns._ID))
                 val name =
-                        getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_NAME))
+                    getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_NAME))
                 val phone =
-                        getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_PHONE))
+                    getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_PHONE))
                 val address =
-                        getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_ADDRESS))
+                    getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_ADDRESS))
                 val contact = Contact(id, name, phone, address)
                 results.add(contact)
             }
@@ -76,22 +76,22 @@ class ContactController(context: Context) {
         // Define a projection that specifies which columns from the database
         // you will actually use after this query.
         val projection = arrayOf(
-                BaseColumns._ID,
-                ContactContract.ContactEntry.COLUMN_NAME,
-                ContactContract.ContactEntry.COLUMN_PHONE,
-                ContactContract.ContactEntry.COLUMN_ADDRESS
+            BaseColumns._ID,
+            ContactContract.ContactEntry.COLUMN_NAME,
+            ContactContract.ContactEntry.COLUMN_PHONE,
+            ContactContract.ContactEntry.COLUMN_ADDRESS
         )
 
         val sortOrder = "${ContactContract.ContactEntry.COLUMN_NAME} DESC"
 
         val cursor = db.query(
-                ContactContract.ContactEntry.TABLE_NAME,    // The table to query
-                projection, // The array of columns to return (pass null to get all)
-                null,  // The columns for the WHERE clause
-                null, // The values for the WHERE clause
-                null, // don't group the rows
-                null,   // don't filter by row groups
-                sortOrder   // The sort order
+            ContactContract.ContactEntry.TABLE_NAME,    // The table to query
+            projection, // The array of columns to return (pass null to get all)
+            null,  // The columns for the WHERE clause
+            null, // The values for the WHERE clause
+            null, // don't group the rows
+            null,   // don't filter by row groups
+            sortOrder   // The sort order
         )
 
         val results = arrayListOf<Contact>()
@@ -99,11 +99,11 @@ class ContactController(context: Context) {
             while (moveToNext()) {
                 val id = getLong(getColumnIndexOrThrow(BaseColumns._ID))
                 val name =
-                        getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_NAME))
+                    getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_NAME))
                 val phone =
-                        getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_PHONE))
+                    getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_PHONE))
                 val address =
-                        getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_ADDRESS))
+                    getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_ADDRESS))
                 val contact = Contact(id, name, phone, address)
                 results.add(contact)
             }
@@ -117,15 +117,15 @@ class ContactController(context: Context) {
     }
 
     // Return number of row deleted
-    fun delete(name: String): Int {
+    fun delete(address: String): Int {
         val db = contactSQLHelper.writableDatabase
 
         // Define 'where' part of query.
-        val selection = "${ContactContract.ContactEntry.COLUMN_NAME} LIKE ?"
+        val selection = "${ContactContract.ContactEntry.COLUMN_ADDRESS} LIKE ?"
         // Specify arguments in placeholder order.
-        val selectionArgs = arrayOf(name)
+        val selectionArgs = arrayOf(address)
         val deleteRows =
-                db.delete(ContactContract.ContactEntry.TABLE_NAME, selection, selectionArgs)
+            db.delete(ContactContract.ContactEntry.TABLE_NAME, selection, selectionArgs)
         db.close()
         return deleteRows
     }
@@ -138,26 +138,28 @@ class ContactController(context: Context) {
         // Specify arguments in placeholder order.
         val selectionArgs = arrayOf("$id")
         val deleteRows =
-                db.delete(ContactContract.ContactEntry.TABLE_NAME, selection, selectionArgs)
+            db.delete(ContactContract.ContactEntry.TABLE_NAME, selection, selectionArgs)
         db.close()
         return deleteRows
     }
 
-    fun update(oldName: String, name: String): Int {
+    fun update(oldContact: Contact, newContact: Contact): Int {
         val db = contactSQLHelper.writableDatabase
 
         val values = ContentValues().apply {
-            put(ContactContract.ContactEntry.COLUMN_NAME, name)
+            put(ContactContract.ContactEntry.COLUMN_NAME, newContact.name)
+            put(ContactContract.ContactEntry.COLUMN_PHONE, newContact.phone)
+            put(ContactContract.ContactEntry.COLUMN_ADDRESS, newContact.address)
         }
 
-        val selecstion = "${ContactContract.ContactEntry.COLUMN_NAME} LIKE ?"
-        val selectionArgs = arrayOf(oldName)
+        val selection = "${BaseColumns._ID} = ?"
+        val selectionArgs = arrayOf("${oldContact.id}")
 
         val count = db.update(
-                ContactContract.ContactEntry.TABLE_NAME,
-                values,
-                selecstion,
-                selectionArgs
+            ContactContract.ContactEntry.TABLE_NAME,
+            values,
+            selection,
+            selectionArgs
         )
 
         db.close()

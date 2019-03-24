@@ -25,6 +25,7 @@
             android:layout_marginStart="16dp"
             android:hint="Phone"
             android:maxLines="1"
+            android:inputType="number"
             android:textColor="@android:color/black"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toEndOf="@id/edt_name"
