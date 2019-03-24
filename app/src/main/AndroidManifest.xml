@@ -9,9 +9,13 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <activity android:name=".room.ui.RoomActivity"></activity>
+        <activity
+            android:name=".room.ui.RoomActivity"
+            android:windowSoftInputMode="stateHidden"
+            android:label="Room Sample"></activity>
         <activity
             android:name=".sqlite.ui.ContactControllerActivity"
+            android:label="SQLite Sample"
             android:windowSoftInputMode="stateHidden"></activity>
         <activity android:name=".MainActivity">
             <intent-filter>

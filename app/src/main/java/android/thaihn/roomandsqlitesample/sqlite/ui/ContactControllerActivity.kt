@@ -39,7 +39,7 @@ class ContactControllerActivity : AppCompatActivity(), ContactAdapter.ContactLis
             layoutManager = LinearLayoutManager(applicationContext, RecyclerView.VERTICAL, false)
         }
 
-        actionBar?.title = "Manage contact"
+        actionBar?.title = "Manage contact SQLite"
 
         updateListContact()
 
@@ -156,6 +156,7 @@ class ContactControllerActivity : AppCompatActivity(), ContactAdapter.ContactLis
 
         val contact = Contact(0, name, phone, address)
         val id = mDbController.insert(contact)
+
         Log.d(TAG, "addContact: id:$id")
         if (id.toInt() > 0) {
             Toast.makeText(applicationContext, "Add contact success", Toast.LENGTH_SHORT).show()
