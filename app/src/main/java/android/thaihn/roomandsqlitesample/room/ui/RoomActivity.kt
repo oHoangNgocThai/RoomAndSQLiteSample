@@ -28,6 +28,8 @@ class RoomActivity : AppCompatActivity(), ContactAdapter.ContactListener {
 
     private val mContactAdapter = ContactAdapter(arrayListOf(), this)
 
+    private var mContactEdit: Contact? = null
+
     private var appRoomDatabase: AppRoomDatabase? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,6 +49,14 @@ class RoomActivity : AppCompatActivity(), ContactAdapter.ContactListener {
             addContact()
         }
 
+        roomBinding.btnDelete.setOnClickListener {
+            deleteContactByAddress()
+        }
+
+        roomBinding.btnEdit.setOnClickListener {
+            updateContact()
+        }
+
         appRoomDatabase?.getContactDao()
             ?.getAllUser()?.observe(this,
                 Observer<List<Contact>> { t ->
@@ -55,12 +65,55 @@ class RoomActivity : AppCompatActivity(), ContactAdapter.ContactListener {
                 })
     }
 
+    private fun updateContact() {
+        mContactEdit?.let {
+            val name = roomBinding.edtName.text.trim().toString()
+            val phone = roomBinding.edtPhone.text.trim().toString()
+            val address = roomBinding.edtAddress.text.trim().toString()
+
+            if (name.isEmpty() && phone.isEmpty() && address.isEmpty()) {
+                Toast.makeText(applicationContext, "Unless have one field name", Toast.LENGTH_SHORT)
+                    .show()
+                return
+            }
+
+            val newContact = ContactEntity(name, phone, address).apply {
+                id = it.id
+            }
+
+            appRoomDatabase?.getContactDao()
+                ?.updateUser(newContact)
+
+            mContactEdit = null
+            releaseInput()
+            hideKeyboard()
+        }
+    }
+
+    private fun deleteContactByAddress() {
+        val address = roomBinding.edtAddress.text.trim().toString()
+
+        if (address.isEmpty()) {
+            Toast.makeText(applicationContext, "Address is empty!", Toast.LENGTH_SHORT).show()
+            return
+        }
+        appRoomDatabase?.getContactDao()
+            ?.deleteUserByAddress(address)
+
+    }
+
     override fun deleteContact(item: Contact) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        val contactEntity = ContactEntity(item.name, item.phone, item.address)
+        contactEntity.id = item.id
+        appRoomDatabase?.getContactDao()
+            ?.deleteUser(contactEntity)
     }
 
     override fun editContact(item: Contact) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        mContactEdit = item
+        roomBinding.edtName.setText(item.name)
+        roomBinding.edtPhone.setText(item.phone)
+        roomBinding.edtAddress.setText(item.address)
     }
 
     private fun addContact() {
@@ -84,6 +137,7 @@ class RoomActivity : AppCompatActivity(), ContactAdapter.ContactListener {
         // Add contact using Room
         val contactEntity = ContactEntity(name, phone, address)
         val id = appRoomDatabase?.getContactDao()?.insertUser(contactEntity)
+        Log.d(TAG, "addContact: id:$id")
 
         releaseInput()
         hideKeyboard()

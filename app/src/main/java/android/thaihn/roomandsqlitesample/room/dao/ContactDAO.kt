@@ -17,6 +17,9 @@ interface ContactDAO {
     @Delete
     fun deleteUser(vararg contactEntity: ContactEntity)
 
+    @Query("DELETE FROM contacts WHERE address = :address")
+    fun deleteUserByAddress(address: String)
+
     @Query("SELECT * FROM contacts")
     fun getAllUser(): LiveData<List<Contact>>
 
