@@ -2,6 +2,10 @@
 
 # Overview
 
+* Lưu trữ dữ liệu trong Android sử dụng SQLite để quản lý database, nằm trong package [android.database.sqlite](https://developer.android.com/reference/android/database/sqlite/package-summary.html). Nó sử dụng ngôn ngữ truy vấn tương tự như SQL để viết các lệnh **Insert**, **Update**, **Delete**, **Query** cùng với các câu lệnh tạo bảng như trên SQL.
+* Database này được lưu trữ bên trong thư mục của ứng dụng khi người dùng cài đặt, nếu không phải là quền root thì sẽ không xem được.
+* SQLite cung cấp một số API để cho người dùng sử dụng để quản lý database của mình.
+
 # Manage DB with SQLite
 
 > Việc lưu trữ dữ liệu vào database bên trong thiết bị Android sẽ được thông qua **SQLite Database**, nó dựa trên nền tảng của **SQL Database**. Những thứ bạn cần để thao tác với SQLite là kiến thức cơ bản về SQL, sau đó tất cả những thứ bạn cần đều nằm trong gói **android.database.sqlite**.
