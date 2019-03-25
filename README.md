@@ -752,3 +752,49 @@ Flowable<User> getUserById(String userId);
 
 ## Room with Time
 
+* Nếu bạn có nhu cầu phải lưu trữ và truy xuất một số loại ngày giờ. Room không cung cấp cho bạn bất kì hỗ trợ nào, nhưng thay vào đó lại cung cấp annotation **@TypeConverter** để map giữa những đối tượng phức tạp về dạng mà Room có thể hiểu được và ngược lại.
+* Dưới đây sử dụng class Converters để có thể convert time ở dạng Long về Date và ngược lại:
+
+```
+class TimeConverters {
+
+    @TypeConverter
+    fun fromTimestamp(value: Long?): Date? {
+        return value?.let { Date(it) }
+    }
+
+    @TypeConverter
+    fun dateToTimeStamp(date: Date?): Long? {
+        return date?.time?.toLong()
+    }
+}
+```
+
+* Sau đó khai báo các lớp Converter cần thiết vào trong Database Room như sau:
+
+```
+@Database(entities = arrayOf(User::class), version = 1)
+@TypeConverters(Converters::class)
+abstract class AppDatabase : RoomDatabase() {
+    abstract fun userDao(): UserDao
+}
+```
+
+* Bây giờ bạn có thể sử dụng đối tượng Date như là một đối tượng được Room hiểu được:
+
+```
+@Entity
+data class User(private var birthday: Date?)
+```
+
+* Lấy ra các đối tượng thỏa mãn điều kiện **Date** tương tự như với kiểu dữ liệu bình thường như sau:
+
+```
+@Dao
+interface UserDao {
+    
+    @Query("SELECT * FROM user WHERE birthday BETWEEN :from AND :to")
+    fun findUsersBornBetweenDates(from: Date, to: Date): List<User>
+    
+}
+```

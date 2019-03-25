@@ -3,9 +3,12 @@ package android.thaihn.roomandsqlitesample.room.database
 import android.content.Context
 import android.thaihn.roomandsqlitesample.room.dao.ContactDAO
 import android.thaihn.roomandsqlitesample.room.entity.ContactEntity
+import android.thaihn.roomandsqlitesample.room.entity.TimeConverters
+import androidx.databinding.adapters.Converters
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.migration.Migration
 
@@ -16,6 +19,7 @@ import androidx.room.migration.Migration
     exportSchema = true,
     version = AppRoomDatabase.DATABASE_VERSION
 )
+@TypeConverters(TimeConverters::class)
 abstract class AppRoomDatabase : RoomDatabase() {
 
     abstract fun getContactDao(): ContactDAO
