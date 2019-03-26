@@ -5,7 +5,6 @@
 * Lưu trữ dữ liệu trong Android sử dụng SQLite để quản lý database, nằm trong package [android.database.sqlite](https://developer.android.com/reference/android/database/sqlite/package-summary.html). Nó sử dụng ngôn ngữ truy vấn tương tự như SQL để viết các lệnh **Insert**, **Update**, **Delete**, **Query** cùng với các câu lệnh tạo bảng như trên SQL.
 * Database này được lưu trữ bên trong thư mục của ứng dụng khi người dùng cài đặt, nếu không phải là quền root thì sẽ không xem được.
 * SQLite cung cấp một số API để cho người dùng sử dụng để quản lý database của mình.
-* Document chi tiết hơn ở [đây]() 
 
 # Manage DB with SQLite
 
@@ -16,6 +15,20 @@
 ## Schema, Contract and SQL helper
 
 * Trước khi thao tác với cơ sở dữ liệu SQLite, điều đầu tiên cần phải xác định là lược đồ(schema) của database. Đây chính là cách tổ chức dữ liệu của database, để tạo ra nó bạn có thể thấy hữu ích khi tạo một lớp lưu trữ các thông tin của lược đồ và chỉ rõ ràng bố cục cấu trúc của nó.
+* Lớp này sẽ chịu trách nhiệm khai báo tên cho các URI, bảng và cột, chúng ta sử dụng các hằng số giống nhau trên tất cả các lớp khác trong cùng 1 package, điều này dễ dàng cho việc thay đổi sau này.
+
+```
+object ContactContract {
+    
+    object ContactEntry: BaseColumns {
+        const val TABLE_NAME = "contact_entry"
+        const val COLUMN_NAME = "name"
+        const val COLUMN_PHONE = "phone"
+        const val COLUMN_ADDRESS = "address"
+    }
+}
+```
+
 * Khi bạn đã xác định được database của mình trông sẽ như thế nào, gồm những trường gì rồi thì tiếp đó bạn nên sử dụng câu lệnh tương đương bên trong **SQL** để có thể tạo ra database dạng bảng, dưới đây là một ví dụ:
 
 ```
@@ -25,21 +38,46 @@ private const val SQL_CREATE_CONTACT = "CREATE TABLE ${ContactEntry.TABLE_NAME} 
             "${ContactEntry.COLUMN_PHONE} TEXT, " +
             "${ContactEntry.COLUMN_ADDRESS} TEXT " +
             ")"
-private const val SQL_DELETE_CONTACT = "DROP TABLE IF EXISTS ${ContactEntry.TABLE_NAME}"
+
+    private const val SQL_DELETE_CONTACT = "DROP TABLE IF EXISTS ${ContactEntry.TABLE_NAME}"
 ```
 
 * Tiếp đến bạn có thể tạo một class Helper được implement từ **SQLiteOpenHelper**(đây là class bao gồm các tiện ích của API giúp bạn quản lý database của mình). Khi bạn sử dụng class này tham chiếu đến database, hệ thống sẽ thực hiện các hoạt động có khả năng lâu dài là tạo và cập nhật database chi khi cần chứ không phải trong quá trình khởi động. Bạn chỉ cần gọi **getWritableDatabase() or getReadableDatabase()**, nhưng nên thực hiện trong background thread.
 
 ```
-class ContactSQLHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+class ContactSQLHelper(context: Context) :
+    SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+
     override fun onCreate(db: SQLiteDatabase?) {
         db?.execSQL(SQL_CREATE_CONTACT)
     }
+
     override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
+        // This database is only a cache for online data, so its upgrade policy is
+        // to simply to discard the data and start over
+        Log.d(TAG, "onUpgrade: oldVersion:$oldVersion---newVersion:$newVersion")
         db?.execSQL(SQL_DELETE_CONTACT)
         onCreate(db)
     }
+
+    override fun onDowngrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
+        Log.d(TAG, "onDowngrade: oldVersion:$oldVersion---newVersion:$newVersion")
+        onUpgrade(db, oldVersion, newVersion)
+    }
+
+    companion object {
+        private val TAG = ContactSQLHelper::class.java.simpleName
+        // If you change the database schema, you must increment the database version
+        const val DATABASE_NAME = "Contact.db"
+        const val DATABASE_VERSION = 1
+    }
 }
+```
+
+* Để truy cập vào database, hãy tạo một đối tượng của class helper trên:
+
+```
+val contactSQLHelper = ContactSQLHelper(context)
 ```
 
 ## Insert, Read, Update, Delete SQLite Database
@@ -49,9 +87,17 @@ class ContactSQLHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NA
 * Thêm dữ liệu vào bảng bên trong SQLite database sử dụng đối tượng của **SQLiteOpenHelper** và cung cấp **writableDatabase** để có thể **insert** được dữ liệu vào:
 
 ```
-db.insert(ContactContract.ContactEntry.TABLE_NAME, null, values)
-```
+fun insert(contact: Contact): Long {
+        val db = contactSQLHelper.writableDatabase
+        val values = ContentValues().apply {
+            put(ContactContract.ContactEntry.COLUMN_NAME, contact.name)
+            put(ContactContract.ContactEntry.COLUMN_PHONE, contact.phone)
+            put(ContactContract.ContactEntry.COLUMN_ADDRESS, contact.address)
+        }
 
+        return db.insert(ContactContract.ContactEntry.TABLE_NAME, null, values)
+    }
+```
 > Kết quả sẽ trả về row_id nếu thêm thành công, thất bại thì trả về -1.
 
 * Tham số thứ 2 trong phương thức **insert()** sẽ cho biết hành động của framework nếu như **values** trống rỗng(không chứa giá trị nào). Nếu truyền vào là tên của một cột, nó sẽ chèn một hàng và đặt tất cả giá trị đó là null. Còn nếu để là null thì sẽ không có hành động gì.
@@ -63,26 +109,51 @@ db.insert(ContactContract.ContactEntry.TABLE_NAME, null, values)
 * Ban đầu vị trí con trỏ bắt đầu với -1, gọi moveToNext() để di chuyển đặt con trỏ sau đó lấy ra được các kết quả hay không. Tại đây sử dụng phương thức lấy ra dữ liệu đối với từng cursor như là **getLong()**, **getString()**, ... và truyền vào đó chỉ số cột hoặc là tên của cột cần lấy giá trị, cuối cùng là **close()** để giải phóng tài nguyên.
 
 ```
-val projection = arrayOf(
-    BaseColumns._ID,
-    ContactContract.ContactEntry.COLUMN_NAME,
-    ContactContract.ContactEntry.COLUMN_PHONE,
-    ContactContract.ContactEntry.COLUMN_ADDRESS
-)
+fun getContact(name: String): ArrayList<Contact> {
+        val db = contactSQLHelper.readableDatabase
 
-val selection = "${ContactContract.ContactEntry.COLUMN_NAME} = ?"
-val selectionArgs = arrayOf(name)
-val sortOrder = "${ContactContract.ContactEntry.COLUMN_NAME} DESC"
+        // Define a projection that specifies which columns from the database
+        // you will actually use after this query.
+        val projection = arrayOf(
+            BaseColumns._ID,
+            ContactContract.ContactEntry.COLUMN_NAME,
+            ContactContract.ContactEntry.COLUMN_PHONE,
+            ContactContract.ContactEntry.COLUMN_ADDRESS
+        )
 
-val cursor = db.query(
-    ContactContract.ContactEntry.TABLE_NAME,    // The table to query
-    projection, // The array of columns to return (pass null to get all)
-    selection,  // The columns for the WHERE clause
-    selectionArgs, // The values for the WHERE clause
-    null, // don't group the rows
-    null,   // don't filter by row groups
-    sortOrder   // The sort order
-)           
+        val selection = "${ContactContract.ContactEntry.COLUMN_NAME} = ?"
+        val selectionArgs = arrayOf(name)
+
+        val sortOrder = "${ContactContract.ContactEntry.COLUMN_NAME} DESC"
+
+        val cursor = db.query(
+            ContactContract.ContactEntry.TABLE_NAME,    // The table to query
+            projection, // The array of columns to return (pass null to get all)
+            selection,  // The columns for the WHERE clause
+            selectionArgs, // The values for the WHERE clause
+            null, // don't group the rows
+            null,   // don't filter by row groups
+            sortOrder   // The sort order
+        )
+
+        val results = arrayListOf<Contact>()
+        with(cursor) {
+            while (moveToNext()) {
+                val id = getLong(getColumnIndexOrThrow(BaseColumns._ID))
+                val name = getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_NAME))
+                val phone = getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_PHONE))
+                val address = getString(getColumnIndexOrThrow(ContactContract.ContactEntry.COLUMN_ADDRESS))
+                val contact = Contact(id, name, phone, address)
+                results.add(contact)
+            }
+        }
+        
+        // close
+        cursor.close()
+        db.close()
+        
+        return results
+    }
 ```
 
 ### Delete from database
@@ -90,9 +161,18 @@ val cursor = db.query(
 * Để xóa một hàng từ bảng bên trong database, bạn cần sử dụng phương thức **delete()**. Cơ chế hoạt động giống như các đối số lựa chọn tìm kiếm của phương thức **query()** để có thể tìm được các đối tượng phù hợp.
 
 ```
-val selection = "${ContactContract.ContactEntry.COLUMN_NAME} LIKE ?"
-val selectionArgs = arrayOf(name)
-val deleteRows = db.delete(ContactContract.ContactEntry.TABLE_NAME, selection, selectionArgs)
+// Return number of row deleted
+    fun delete(name: String) : Int{
+        val db = contactSQLHelper.writableDatabase
+
+        // Define 'where' part of query.
+        val selection = "${ContactContract.ContactEntry.COLUMN_NAME} LIKE ?"
+        // Specify arguments in placeholder order.
+        val selectionArgs = arrayOf(name)
+        val deleteRows = db.delete(ContactContract.ContactEntry.TABLE_NAME, selection, selectionArgs)
+        db.close()
+        return deleteRows
+    }
 ``` 
 > Phương thức này sẽ trả về số lượng row mà database xóa thành công.
 
@@ -101,10 +181,26 @@ val deleteRows = db.delete(ContactContract.ContactEntry.TABLE_NAME, selection, s
 * Để update lại các giá trị trong database,sử dụng phương thức **update()**. Tham số sử dụng **contentValue** khi insert và sử dụng điều kiện của xóa.
 
 ```
-val selection = "${ContactContract.ContactEntry.COLUMN_NAME} LIKE ?"
-val selectionArgs = arrayOf(oldName)
+fun update(oldName: String, name: String) : Int{
+        val db = contactSQLHelper.writableDatabase
 
-val count = db.update(ContactContract.ContactEntry.TABLE_NAME, values, selecstion, selectionArgs)
+        val values = ContentValues().apply {
+            put(ContactContract.ContactEntry.COLUMN_NAME, name)
+        }
+
+        val selecstion = "${ContactContract.ContactEntry.COLUMN_NAME} LIKE ?"
+        val selectionArgs = arrayOf(oldName)
+
+        val count = db.update(
+            ContactContract.ContactEntry.TABLE_NAME,
+            values,
+            selecstion,
+            selectionArgs
+        )
+
+        db.close()
+        return count
+    }
 ```
 
 > Đến cuối cùng, khi Activity bị hủy đi thì cũng nên close lại **SQLiteOpenHelper**.
@@ -159,6 +255,10 @@ override fun onUpgrade(db: SQLiteDatabase, oldV: Int, newV: Int) {
         upgradeVersion3(db)
 
     }
+    if (oldVersion <  4) {
+        upgradeVersion4(db)
+
+    }
 }
 ```
 
@@ -176,8 +276,7 @@ Chính vì những lý do trên mà thư viện **Room Persistence** ra đời, 
 
 * Cấu trúc của Room bao gồm 3 phần chính sau:
 
-![](https://developer.android.com/images/training/data-storage/room_architecture.png)
- 
+[](https://developer.android.com/jetpack/androidx/releases/room)
 
 * Để thao tác với Room database, thêm chúng vào project tại [đây](https://developer.android.com/topic/libraries/architecture/adding-components)
 
@@ -192,17 +291,52 @@ Chính vì những lý do trên mà thư viện **Room Persistence** ra đời, 
 @Entity
 data class User(
     @PrimaryKey var id: Int,
-    @ColumnInfo(name = "first_name") var firstName: String?,
-    @ColumnInfo(name = "last_name") var lastName: String?,
-    @Embedded val address: Address,
-    @Ignore val avatar: Bitmap?
+    var firstName: String?,
+    var lastName: String?
 )
 ```
 
 * **PrimaryKey**: Chỉ ra khóa chính của thực thể, có thể set cho tự tăng bằng **autoGenerate = true**. Có thể chỉ định nhiều khóa chính trong bảng bằng cách sử dụng `@Entity( primaryKeys = ["first_name", "id"])`
+
+```
+@PrimaryKey(autoGenerate = true) val id: Int
+```
+
 * **ColumnInfo**: Chỉ ra thông tin của các cột tương ứng trong database.
+
+```
+@ColumnInfo(name = "first_name") var firstName: String?
+@ColumnInfo(name = "last_name") var lastName: String?
+```
 * **Ignore** : Sử dụng nếu bạn muốn Room bỏ qua trường nào đó không lưu vào trong database. Nếu như trường hợp kế thừa xảy ra, có thể khai báo trong **@Entity**.
+
+```
+open class User {
+    var picture: Bitmap? = null
+}
+
+@Entity(ignoredColumns = arrayOf("picture"))
+data class RemoteUser(
+    @PrimaryKey var id: Int,
+    var hasVpn: Boolean
+) : User()
+```
+
 * **Embeded** : các trường lồng nhau có thể tham chiếu trực tiếp khi query.
+
+```
+data class Address(
+    var city: String?,
+    @ColumnInfo(name = "post_code") var postCode: Int
+)
+
+@Entity
+data class User(
+    @PrimaryKey var id: Int,
+    var firstName: String?,
+    @Embedded var address: Address?
+)
+```
 
 #### Search support
 
@@ -230,6 +364,12 @@ data class User(
 
 ```
 @Entity(indices = arrayOf(Index(value = ["last_name", "address"])))
+data class User(
+    @PrimaryKey var id: Int,
+    var firstName: String?,
+    var address: String?,
+    @ColumnInfo(name = "last_name") var lastName: String?,
+)
 ```
 
 * Đôi khi các trường nhất định trong database phải là duy nhất, bạn có thể thực thi việc này với lệnh trong annotation Entity:
@@ -277,9 +417,15 @@ public abstract class User {
             childColumns = arrayOf("user_id"))
        )
 )
-```
+data class Book(
+    @PrimaryKey var bookId: Int,
+    var title: String?,
+    @ColumnInfo(name = "user_id") var userId: Int
+)
 
 * Sử dụng khóa ngoại rất mạnh mẽ, chúng cho phép bạn chỉ định những gì thực thể được tham chiếu đến cập nhật dữ liệu như thế nào. Chẳng hạn bạn có thể chỉ định xóa hết các **Book** khi mà người dùng bị xóa bằng tùy chọn **onDelete = CASCADE**, tương tự như trong các câu lệnh SQL.
+
+```
 
 ### Dao
 
@@ -292,14 +438,26 @@ public abstract class User {
 
 #### Insert to database
 
-* Để thêm dữ liệu vào database, bạn tạo một phương thức Dao với annotation là **@Insert**, Room sẽ triển khai chèn tất cả các tham số vào 1 lần xử lý cho dù bạn có truyền vào nhiều tham số cùng 1 lúc:
+* Để thêm dữ liệu vào database, bạn tạo một phương thức Dao với annotation là **@Insert**, Room sẽ triển khai chèn tất cả các tham số vào 1 lần xử lý.
 
 ```
-@Insert(onConflict = OnConflictStrategy.REPLACE)
-fun insertUser(user: User)
+@Dao
+interface UserDao {
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertUser(user: User)
+
+    @Insert
+    fun insertBothUser(user1: User, user2: User)
+
+    @Insert
+    fun insertUserAndContact(user: User, contact: Contact)
+
+}
 ```
 
 * Nếu phương thức @Insert chỉ có 1 tham số, nó sẽ trả về rowId mới được thêm vào database ở dạng Long. Nếu tham số đầu vào là array hoặc list thì sẽ trả về dạng tương ứng.
+
 
 #### Update to database
 
@@ -338,7 +496,6 @@ fun deleteUser(vararg user: User)
 @Query("SELECT * FROM user")
 fun getAllUser(): List<User>
 ```
-
 * Thông thường đa số đều sẽ thêm tham số vào để lọc ra đối tượng phù hợp, ví dụ như: 
 
 ```
@@ -348,6 +505,13 @@ fun getOlderUser(olderAge: Int): List<User>
 @Query("SELECT * FROM user WHERE first_name LIKE :search " +
             "OR last_name LIKE :search")
 fun findUserWithName(search: String): List<User>
+```
+
+* Nếu bạn chỉ muốn trả về một vài cột có trong một bảng thì có thể trực tiếp viết ở trong **@Query**:
+
+```
+@Query("SELECT first_name, last_name FROM user")
+fun getNameUser(): List<User>
 ```
 
 * Trường hợp bạn cần phải query tập hợp các đối số, theo ví dụ dưới đây:
@@ -370,12 +534,16 @@ fun loadUsersFromRegions(regions: List<String>): LiveData<User>
 @Query("SELECT * from user where id = :id LIMIT 1")
 fun loadUserById(id: Int): Flowable<User>
 
+// Emits the number of users added to the database.
 @Insert
 fun insertLargeNumberOfUsers(users: List<User>): Maybe<Int>
 
+// Makes sure that the operation finishes successfully.
 @Insert
 fun insertLargeNumberOfUsers(varargs users: User): Completable
 
+/* Emits the number of users removed from the database. Always emits at
+least one user. */
 @Delete
 fun deleteAllUsers(users: List<User>): Single<Int>
 ```
@@ -503,12 +671,12 @@ static final Migration MIGRATION_3_4 = new Migration(3, 4) {
         // Create the new table
         database.execSQL(
                 "CREATE TABLE users_new (userid TEXT, username TEXT, last_update INTEGER, PRIMARY KEY(userid))");
-        // Copy the data
+// Copy the data
         database.execSQL(
                 "INSERT INTO users_new (userid, username, last_update) SELECT userid, username, last_update FROM users");
-        // Remove the old table
+// Remove the old table
         database.execSQL("DROP TABLE users");
-        // Change the table name to the correct one
+// Change the table name to the correct one
         database.execSQL("ALTER TABLE users_new RENAME TO users");
     }
 };
@@ -522,6 +690,9 @@ database = Room.databaseBuilder(context.getApplicationContext(),
         .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_1_4)
         .build();
 ```
+
+
+
 ## Room with RxJava
 
 * Các truy vấn của Room thường trả về qua **LiveData** hoặc **RxJava** như `Maybe`, `Single`, `Flowable` là các truy vấn có thể quan sát được. Chúng cho phép bạn nhận được sự thay đổi của database một cách nhanh nhất để có thể cập nhật UI.
@@ -531,16 +702,16 @@ database = Room.databaseBuilder(context.getApplicationContext(),
 ```
 @Insert
 Completable insert(User user);
-
+// or
 @Insert
 Maybe<Long> insert(User user);
-
+// or
 @Insert
 Single<Long> insert(User[] user);
-
+// or
 @Insert
 Maybe<List<Long>> insert(User[] user);
-
+// or
 @Insert
 Single<List<Long>> insert(User[] user);
 ```
@@ -607,7 +778,7 @@ class TimeConverters {
 
 ```
 @Database(entities = arrayOf(User::class), version = 1)
-@TypeConverters(TimeConverters::class)
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
 }
